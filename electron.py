@@ -48,8 +48,8 @@ class EleCorrProducer:
                         #print(branch_name)
                         #print(branch_central)
                         df = df.Define(f"{branch_name}_double",
-                                    f'''HttCandidate.leg_type[{leg_idx}] == Leg::e ? ::correction::EleCorrProvider::getGlobal().getID_SF(
-                                HttCandidate.leg_p4[{leg_idx}], Electron_genMatch.at(HttCandidate.leg_index[{leg_idx}]), "{working_point}",
+                                    f'''HLepCandidate.leg_type[{leg_idx}] == Leg::e ? ::correction::EleCorrProvider::getGlobal().getID_SF(
+                                HLepCandidate.leg_p4[{leg_idx}], Electron_genMatch.at(HLepCandidate.leg_index[{leg_idx}]), "{working_point}",
                                 "{EleCorrProducer.year}",::correction::EleCorrProvider::UncSource::{source}, ::correction::UncScale::{scale}) : 1.;''')
                         if scale != central:
                             branch_name_final = branch_name + '_rel'

@@ -62,9 +62,9 @@ class TauCorrProducer:
                     branch_Medium_name = f"weight_{leg_name}_TauID_SF_Medium_{syst_name}"
                     branch_Medium_central = f"""weight_{leg_name}_TauID_SF_Medium_{source}Central"""
                     df = df.Define(f"{branch_Medium_name}_double",
-                                f'''HttCandidate.leg_type[{leg_idx}] == Leg::tau ? ::correction::TauCorrProvider::getGlobal().getSF(
-                               HttCandidate.leg_p4[{leg_idx}], Tau_decayMode.at(HttCandidate.leg_index[{leg_idx}]),
-                               Tau_genMatch.at(HttCandidate.leg_index[{leg_idx}]),"Medium", HttCandidate.channel(),
+                                f'''HLepCandidate.leg_type[{leg_idx}] == Leg::tau ? ::correction::TauCorrProvider::getGlobal().getSF(
+                               HLepCandidate.leg_p4[{leg_idx}], Tau_decayMode.at(HLepCandidate.leg_index[{leg_idx}]),
+                               Tau_genMatch.at(HLepCandidate.leg_index[{leg_idx}]),"Medium", HLepCandidate.channel(),
                                ::correction::TauCorrProvider::UncSource::{source}, ::correction::UncScale::{scale}) : 1.;''')
                     if scale != central:
                         branch_name_Medium_final = branch_Medium_name + '_rel'
