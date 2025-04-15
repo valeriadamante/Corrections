@@ -93,7 +93,7 @@ class bTagCorrProducer:
                     #branch_central = f"""weight_bTagSF_{wp.name}_{getSystName(central, central)}"""
                     df = df.Define(f"{branch_name}_double",
                                 f''' ::correction::bTagCorrProvider::getGlobal().getSF(
-                                Jet_p4, Jet_bCand, Jet_hadronFlavour, Jet_btag{self.btag_branch}, WorkingPointsbTag::{wp.name},
+                                Jet_p4, {self.bjet_preselection_branch}, Jet_hadronFlavour, Jet_btag{self.btag_branch}, WorkingPointsbTag::{wp.name},
                                 ::correction::bTagCorrProvider::UncSource::{source}, ::correction::UncScale::{scale}) ''')
                     if scale != central:
                         branch_name_final = branch_name + '_rel'
