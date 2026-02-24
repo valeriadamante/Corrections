@@ -346,6 +346,7 @@ class Corrections:
 
     def defineCrossSection(self, df, crossSectionBranch):
         xs_processor_names = []
+        xs_results = []
         for p_name, proc in self.processors.items():
             if hasattr(proc, "onAnaTuple_defineCrossSection"):
                 xs_processor_names.append(p_name)
@@ -353,18 +354,21 @@ class Corrections:
             raise RuntimeError(
                 "No processor implements onAnaTuple_defineCrossSection method"
             )
-        if len(xs_processor_names) > 1:
-            raise RuntimeError(
-                "Multiple processors implement onAnaTuple_defineCrossSection method. Not supported."
-            )
-        p_name = xs_processor_names[0]
+
         print(
-            f'Using processor "{p_name}" to define cross section for dataset "{self.dataset_name}"'
+            f"Stitching detected for {self.dataset_name}. Processors: {xs_processor_names}"
         )
-        xs_processor = self.processors[p_name]
-        return xs_processor.onAnaTuple_defineCrossSection(
-            df, crossSectionBranch, self.xs_db, self.dataset_name, self.dataset_cfg
-        )
+        for p_name in xs_processor_names:
+            proc = self.processors[p_name]
+            df = proc.onAnaTuple_defineCrossSection(
+                df,
+                f"{crossSectionBranch}_{p_name}",
+                self.xs_db,
+                self.dataset_name,
+                self.dataset_cfg,
+            )
+            xs_results.append(f"{crossSectionBranch}_{p_name}")
+        return df, xs_results
 
     def defineDenominator(self, df, denomBranch, unc_source, unc_scale, ana_caches):
         denom_processor_names = []
@@ -421,8 +425,8 @@ class Corrections:
 
         crossSectionBranch = "weight_xs"
         if "xs" in self.to_apply:
-            df = self.defineCrossSection(df, crossSectionBranch)
-            all_weights.append(crossSectionBranch)
+            df, xs_branches = self.defineCrossSection(df, crossSectionBranch)
+            all_weights.extend(xs_branches)
 
         gen_weight_name = "weight_gen"
         if "gen" in self.to_apply:
@@ -447,6 +451,9 @@ class Corrections:
             all_weights.extend(weight_pu_branches)
 
         if "base" in self.to_apply:
+            weight_xs_branches = [
+                w for w in df.GetColumnNames() if crossSectionBranch in w
+            ]
             for (
                 shape_unc_source,
                 shape_unc_scale,
@@ -459,21 +466,62 @@ class Corrections:
                 shape_weights_product = (
                     " * ".join(shape_weights) if len(shape_weights) > 0 else "1.0"
                 )
+
+                def AddWeightToAllWeights(
+                    df, all_weights, weight_name_central, xs_branch
+                ):
+                    if shape_unc_name == central:
+                        weight_name = weight_name_central
+                        weight_out_name = weight_name
+                    else:
+                        weight_name = f"{weight_name_central}_{shape_unc_name}"
+                        weight_out_name = f"{weight_name}_rel"
+
+                    weight_formula = f"{gen_weight_name} * {lumi_weight_name} * {xs_branch} * {shape_weights_product} / {denomBranch}"
+
+                    df = df.Define(weight_name, f"static_cast<float>({weight_formula})")
+
+                    if shape_unc_name != central:
+                        df = df.Define(
+                            weight_out_name,
+                            f"static_cast<float>({weight_name}/{weight_name_central})",
+                        )
+
+                    all_weights.append(weight_out_name)
+
+                    return df, all_weights
+
                 weight_name_central = "weight_base"
-                if shape_unc_name == central:
-                    weight_name = weight_name_central
-                    weight_out_name = weight_name
+                if (
+                    len(weight_xs_branches) > 1
+                ):  # it HANDLES ONLY THE CASES OF [STITCHER, DEFAULT] FOR THE MOMENT!!
+                    for xs_branch in weight_xs_branches:
+                        xs_branch_split = xs_branch.split("_")
+                        xs_branch_suffix = xs_branch_split[-1]
+                        if (
+                            xs_branch_suffix == "default"
+                        ):  # for the default we have the weight_base_ds, whereas for the stitcher we have the weight_base
+                            weight_name_central = "weight_base_ds"
+                        else:
+                            weight_name_central = "weight_base"
+                        df, all_weights = AddWeightToAllWeights(
+                            df, all_weights, weight_name_central, xs_branch
+                        )
                 else:
-                    weight_name = f"{weight_name_central}_{shape_unc_name}"
-                    weight_out_name = f"{weight_name}_rel"
-                weight_formula = f"{gen_weight_name} * {lumi_weight_name} * {crossSectionBranch} * {shape_weights_product} / {denomBranch}"
-                df = df.Define(weight_name, f"static_cast<float>({weight_formula})")
-                if shape_unc_name != central:
-                    df = df.Define(
-                        weight_out_name,
-                        f"static_cast<float>({weight_name}/{weight_name_central})",
+
+                    df, all_weights = AddWeightToAllWeights(
+                        df, all_weights, weight_name_central, weight_xs_branches[0]
                     )
-                all_weights.append(weight_out_name)
+                    if (
+                        f"weight_base_ds" not in df.GetColumnNames()
+                    ):  # to handle cases where there is no difference between default and stitcher
+                        df = df.Define("weight_base_ds", "weight_base")
+                    else:
+                        print(
+                            f"attention, although there is only 1 XS branch {weight_xs_branches}, the weight_base_ds is already defined, not normal behaviour."
+                        )
+                    all_weights.append("weight_base_ds")
+                print(all_weights)
 
         if "Vpt" in self.to_apply:
             df, Vpt_SF_branches = self.Vpt.getSF(df, isCentral, return_variations)
